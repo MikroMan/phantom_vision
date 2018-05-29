@@ -16,14 +16,12 @@ def parse_args():
     parser.add_argument('-r', '--radius', type=float, default=0.15, help='Platform radius in meters.')
 
     args = parser.parse_args()
-    print("Parsed args. Platform={}cm, XPC={}:{}".format(args.radius*100, args.xpc_host, args.port))
+    print("Parsed args. Platform={}cm, XPC={}:{}".format(args.radius * 100, args.xpc_host, args.port))
     return args
 
 
 print('Program started...')
 args = parse_args()
-
-
 
 camera = cv.VideoCapture(args.camera_id)
 ref_center = None
@@ -41,6 +39,7 @@ def send_vals(x, y, z, ang):
     packer = struct.Struct('f f f f')
     bin_data = packer.pack(*vals)
     sock.sendto(bin_data, (args.xpc_host, args.port))
+
 
 print('Starting platform detection...')
 while True:
@@ -65,7 +64,6 @@ while True:
 
         print('Captured reference platform position')
         break
-
 
 cv.destroyAllWindows()
 print("Starting motion tracking")
@@ -99,21 +97,20 @@ def find_closest_circle(circles):
 def process(min_ball):
     global old_ball, frameskip_counter, trajectory
 
-
     trajectory.insert(0, min_ball)
     if len(trajectory) >= 100:
         trajectory.pop(-1)
 
-
+    # convert ball position into robot coord sys
     dist_real = ratioCoeff * (math.hypot(min_ball[0].astype(float) - ref_center[0].astype(float),
                                          min_ball[1].astype(float) - ref_center[1].astype(float)))
     y_rot = -ratioCoeff * (min_ball[0].astype(float) - ref_center[0].astype(float))
     x_rot = -ratioCoeff * (min_ball[1].astype(float) - ref_center[1].astype(float))
 
-    diff_vec = np.asarray([x_rot - old_ball[0], y_rot - old_ball[1]])
-
     vec_new = np.array([x_rot, y_rot])
+    diff_vec = vec_new - np.asarray([old_ball[0], old_ball[1]])
 
+    # check for 0.0 values to avoid division by 0
     if diff_vec[0] == 0.0 and diff_vec[1] == 0.0:
         diff_vec = np.asarray([0.0000001, diff_vec[1]])
 
@@ -133,19 +130,23 @@ def process(min_ball):
     os_rot = np.cross(np.array([0, 0, 1]), poz_vec)
     os_rot = os_rot / np.linalg.norm(os_rot)
 
+    # define speed sign, towards or away from  center
     if dist_real > math.hypot(old_ball[0], old_ball[1]):
         sign = -1
     else:
         sign = 1
 
-    kot_rot = - 0.7 * dist_real + 0.3 * np.linalg.norm(vel_rad) * sign
+    # calculate angle
+    angle = - 0.7 * dist_real + 0.3 * np.linalg.norm(vel_rad) * sign
 
     old_ball = np.asarray([x_rot, y_rot])
-    if (kot_rot * 180 / np.pi) > 8:
-        kot_rot = 8 * np.pi / 180
+
+    # limit angle to 8 degrees
+    if (angle * 180 / np.pi) > 8:
+        angle = 8 * np.pi / 180
     frameskip_counter = 0
 
-    send_vals(os_rot[0], os_rot[1], os_rot[2], kot_rot)
+    send_vals(os_rot[0], os_rot[1], os_rot[2], angle)
 
 
 def is_holder(ball_pos, pic):
@@ -187,6 +188,7 @@ if __name__ == '__main__':
         circlesBall = cv.HoughCircles(pic_gray, cv.HOUGH_GRADIENT, 1, 60, param1=100, param2=10, minRadius=15,
                                       maxRadius=20)
 
+        # skip processing if no balls detected, or only platform holder is detected
         if circlesBall is None:
             frameskip_counter += 1
             render(frame)
