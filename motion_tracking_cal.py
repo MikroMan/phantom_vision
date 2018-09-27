@@ -10,7 +10,7 @@ balancing on a platform controlled by 3 Parallel Phantom robots via UDP communic
 import socket
 import time
 import struct
-import cv
+import cv2 as cv
 import numpy as np
 import math
 
@@ -197,8 +197,7 @@ def process(min_ball):
 
     # calculate radial speed and check from invalid speeds (ex. no movement causes division by 0)
     cos_al = np.dot(pos_diff, pos_new) / (np.linalg.norm(pos_diff) * np.linalg.norm(pos_new))
-    vel_rad = (cos_al * pos_diff * 30) / (
-                (frameskip_counter + 2) / 2)  # smoothing on frameskip to avoid straining motors
+    vel_rad = (cos_al * pos_diff * 30) / ((frameskip_counter + 2) / 2)  # smoothing on frameskip to avoid straining motors
     if np.isnan(vel_rad[0]) or np.isnan(vel_rad[1]):
         vel_rad = np.array([0, 0])
 
